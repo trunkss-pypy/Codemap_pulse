@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CodeMap Pro+ : Analisis & Navigasi</title>
+    <script src="https://unpkg.com/acorn@8.11.2/dist/acorn.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            touch-action: none;
+        }
+        #panel-atas {
+            padding: 10px 15px;
+            background: #f0f0f0;
+            border-bottom: 2px solid #ccc;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        #kode {
+            flex: 1;
+            min-width: 260px;
+            height: 80px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        button, .btn {
+            padding: 10px 14px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        button:hover, .btn:hover { background: #005a9e; }
+        .toggle-btn { background: #888; }
+        .toggle-btn.active { background: #e67e22; }
+        #searchBox {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            width: 180px;
+        }
+        #main-area {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #sidebar {
+            width: 200px;
+            background: #fafafa;
+            border-right: 1px solid #ccc;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            font-size: 13px;
+        }
+        #sidebar h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+        }
+        #node-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #node-list li {
+            padding: 6px 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        #node-list li:hover { background: #e0e0e0; }
+        .node-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        #canvas-wrap {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #fdfdfd;
+        }
+        canvas { position: absolute; top: 0; left: 0; pointer-events: auto; }
+        #minimap {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            border: 2px solid #333;
+            background: rgba(255,255,255,0.9);
+            z-index: 15;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .legenda {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            pointer-events: none;
+            line-height: 1.4;
+        }
+        .zoom-btns {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10;
+        }
+        .zoom-btns button {
+            width: 40px; height: 40px; font-size: 24px; line-height: 1;
+            padding: 0; background: #fff; color: #333;
+            border: 2px solid #ccc; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        #info-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: none;
+            z-index: 20;
+            white-space: nowrap;
+        }
+        #stat-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            pointer-events: none;
+            z-index: 12;
+        }
+        @media (max-width: 700px) {
+            #sidebar { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="panel-atas">
+        <label>📄 Kode/HTML:</label>
+        <input type="file" id="fileInput" accept=".html,.htm,.js" />
+        <textarea id="kode">function sapa() {
+  const nama = ambilNama();
+  alert("Halo " + nama);
+}
+
+function ambilNama() {
+  return "Budi";
+}
+
+function tidakTerpakai() {
+  console.log("Tidak dipanggil");
+}
+
+let pesan = "Halo";
+const PI = 3.14;
+
+class User {
+  constructor(nama) { this.nama = nama; }
+  getNama() { return this.nama; }
+}
+
+const user = new User("Andi");
+user.getNama();
+
+const kaliDua = (x) => x * 2;
+
+sapa();</textarea>
+        <button id="btnProses">🔍 Gambar Peta</button>
+        <button id="btnReset">↺ Fit & Reset</button>
+        <button id="editModeBtn" class="toggle-btn">🔓 Edit Posisi: Mati</button>
+        <input type="text" id="searchBox" placeholder="🔍 Cari node..." />
+        <button id="btnForce">🧲 Force Layout</button>
+    </div>
+    <div id="main-area">
+        <div id="sidebar">
+            <h3>📋 Daftar Node</h3>
+            <ul id="node-list"></ul>
+        </div>
+        <div id="canvas-wrap">
+            <canvas id="canvas"></canvas>
+            <canvas id="minimap" width="180" height="180"></canvas>
+            <div class="legenda">
+                🟢 Terpakai &nbsp; 🔴 Tidak Terpakai &nbsp; ⚫ Global<br>
+                🟠 <b>Siklus</b> (border oranye)<br>
+                ✨ Klik node → detail (mode edit mati)
+            </div>
+            <div class="zoom-btns">
+                <button id="zoomInBtn">+</button>
+                <button id="zoomOutBtn">−</button>
+            </div>
+            <div id="info-panel"></div>
+            <div id="stat-panel"></div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const minimap = document.getElementById('minimap');
+            const minimapCtx = minimap.getContext('2d');
+            const wrap = document.getElementById('canvas-wrap');
+            const editModeBtn = document.getElementById('editModeBtn');
+            const infoPanel = document.getElementById('info-panel');
+            const statPanel = document.getElementById('stat-panel');
+            const searchBox = document.getElementById('searchBox');
+            const nodeListEl = document.getElementById('node-list');
+
+            let nodes = [];
+            let edges = [];
+            let nodePositions = {};
+
+            let offsetX = 0, offsetY = 0, scale = 1.0;
+            let isDragging = false;
+            let lastMouseX, lastMouseY;
+            let rafId = null;
+
+            let initialPinchDistance = 0, initialScale = 1.0, pinchCenter = { x:0, y:0 };
+            let editMode = false;
+            let draggedNodeId = null;
+            const nodeRadius = 22;
+
+            let mouseDownPos = null;
+            let pulseNodeIds = new Set();
+            let pulseStartTime = 0;
+            const pulseDuration = 800;
+
+            // Data tambahan
+            let cycleNodes = new Set(); // node yang terlibat sirkular
+            let stats = { totalNodes:0, totalEdges:0, unused:0, circulars:0 };
+
+            function updateEditButton() {
+                editModeBtn.textContent = editMode ? '🔒 Edit Posisi: Hidup' : '🔓 Edit Posisi: Mati';
+                editModeBtn.classList.toggle('active', editMode);
+            }
+
+            // Upload file
+            document.getElementById('fileInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const content = ev.target.result;
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(content, 'text/html');
+                    const scripts = doc.querySelectorAll('script');
+                    let allJS = '';
+                    scripts.forEach(s => {
+                        if (s.src) allJS += `// [Eksternal: ${s.src}]\n`;
+                        else allJS += s.textContent + '\n';
+                    });
+                    const eventAttrs = ['onclick','ondblclick','onmousedown','onmouseup','onmouseover',
+                                       'onmouseout','onkeydown','onkeyup','onsubmit','onchange','oninput'];
+                    let eventCalls = '';
+                    const allElements = doc.querySelectorAll('*');
+                    allElements.forEach(el => {
+                        eventAttrs.forEach(attr => {
+                            const val = el.getAttribute(attr);
+                            if (val) {
+                                const match = val.match(/^([a-zA-Z_$][\w.$]*)\(/);
+                                if (match && match[1]) eventCalls += match[1] + '();\n';
+                            }
+                        });
+                    });
+                    document.getElementById('kode').value = (allJS + '\n// -- event handler HTML --\n' + eventCalls).trim();
+                };
+                reader.readAsText(file);
+            });
+
+            function extractExpression(node) {
+                if (!node) return null;
+                if (node.type === 'Literal') return String(node.value);
+                if (node.type === 'BinaryExpression') {
+                    const left = extractExpression(node.left) || '?';
+                    const right = extractExpression(node.right) || '?';
+                    return `${left} ${node.operator} ${right}`;
+                }
+                if (node.type === 'Identifier') return node.name;
+                if (node.type === 'MemberExpression') {
+                    const obj = extractExpression(node.object) || '?';
+                    const prop = node.property.name || '?';
+                    return `${obj}.${prop}`;
+                }
+                if (node.type === 'CallExpression') {
+                    const callee = extractExpression(node.callee) || '?';
+                    return `${callee}(...)`;
+                }
+                if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression') {
+                    if (node.body && node.body.type !== 'BlockStatement') return extractExpression(node.body) || 'fn';
+                    if (node.body && node.body.body) {
+                        for (let stmt of node.body.body) {
+                            if (stmt.type === 'ReturnStatement' && stmt.argument) return extractExpression(stmt.argument) || 'return';
+                        }
+                    }
+                    return 'fn';
+                }
+                return null;
+            }
+
+            function buildGraph(kode) {
+                try {
+                    const ast = acorn.parse(kode, { ecmaVersion: 2022, sourceType: 'script', locations: true });
+                    const definitions = [];
+                    const usages = [];
+                    let currentFunction = null;
+
+                    function walk(node, parent) {
+                        if (!node || typeof node.type !== 'string') return;
+
+                        if (node.type === 'FunctionDeclaration' && node.id) {
+                            const oldFn = currentFunction;
+                            currentFunction = node.id.name;
+                            const expr = extractExpression(node.body);
+                            definitions.push({ name: node.id.name, type: 'function', line: node.loc.start.line, expression: expr });
+                            if (node.body) walk(node.body, node);
+                            currentFunction = oldFn;
+                            return;
+                        }
+
+                        if (node.type === 'VariableDeclaration') {
+                            node.declarations.forEach(decl => {
+                                if (decl.id && decl.id.type === 'Identifier') {
+                                    let varType = 'variable';
+                                    let expr = null;
+                                    if (decl.init) {
+                                        if (decl.init.type === 'ArrowFunctionExpression' || decl.init.type === 'FunctionExpression') {
+                                            varType = 'function';
+                                            expr = extractExpression(decl.init);
+                                        } else if (decl.init.type === 'Literal') {
+                                            expr = String(decl.init.value);
+                                        } else {
+                                            expr = extractExpression(decl.init);
+                                        }
+                                    }
+                                    definitions.push({ name: decl.id.name, type: varType, line: decl.id.loc.start.line, expression: expr });
+                                    if (decl.init && (decl.init.type === 'ArrowFunctionExpression' || decl.init.type === 'FunctionExpression')) {
+                                        const oldFn = currentFunction;
+                                        currentFunction = decl.id.name;
+                                        walk(decl.init, node);
+                                        currentFunction = oldFn;
+                                    }
+                                }
+                            });
+                        }
+
+                        if (node.type === 'ClassDeclaration' && node.id) {
+                            definitions.push({ name: node.id.name, type: 'class', line: node.id.loc.start.line, expression: null });
+                            if (node.body && node.body.body) {
+                                node.body.body.forEach(method => {
+                                    if (method.type === 'MethodDefinition' && method.key.type === 'Identifier') {
+                                        let expr = null;
+                                        if (method.value) expr = extractExpression(method.value);
+                                        definitions.push({ name: method.key.name, type: 'method', line: method.key.loc.start.line, expression: expr });
+                                        const oldFn = currentFunction;
+                                        currentFunction = method.key.name;
+                                        if (method.value) walk(method.value, method);
+                                        currentFunction = oldFn;
+                                    }
+                                });
+                            }
+                            return;
+                        }
+
+                        if (node.type === 'Identifier') {
+                            if (parent && parent.type === 'MemberExpression' && parent.property === node) {
+                                if (parent.parent && parent.parent.type === 'CallExpression' && parent.parent.callee === parent) {
+                                    usages.push({ name: node.name, callerName: currentFunction || 'Global' });
+                                }
+                            } else if (parent && parent.type === 'FunctionDeclaration' && parent.id === node) {}
+                            else if (parent && parent.type === 'ClassDeclaration' && parent.id === node) {}
+                            else if (parent && parent.type === 'VariableDeclarator' && parent.id === node) {}
+                            else if (parent && parent.type === 'MethodDefinition' && parent.key === node) {}
+                            else usages.push({ name: node.name, callerName: currentFunction || 'Global' });
+                        }
+
+                        for (const key in node) {
+                            if (key === 'parent') continue;
+                            const child = node[key];
+                            if (Array.isArray(child)) child.forEach(c => walk(c, node));
+                            else if (child && typeof child.type === 'string') walk(child, node);
+                        }
+                    }
+
+                    walk(ast, null);
+                    const uniqueDefs = {};
+                    definitions.forEach(d => { if (!uniqueDefs[d.name]) uniqueDefs[d.name] = d; });
+
+                    const edgeSet = new Set();
+                    usages.forEach(u => {
+                        if (uniqueDefs[u.name]) {
+                            const caller = u.callerName;
+                            if (caller === 'Global' || uniqueDefs[caller]) {
+                                if (caller !== u.name) edgeSet.add(`${caller}->${u.name}`);
+                            }
+                        }
+                    });
+
+                    const edges = Array.from(edgeSet).map(e => {
+                        const [from, to] = e.split('->');
+                        return { from, to };
+                    });
+
+                    const allNames = new Set(['Global']);
+                    Object.keys(uniqueDefs).forEach(n => allNames.add(n));
+
+                    const nodes = [];
+                    allNames.forEach(name => {
+                        const def = uniqueDefs[name];
+                        const isGlobal = (name === 'Global');
+                        let color = isGlobal ? '#9e9e9e' : (edges.some(e => e.to === name) ? '#4caf50' : '#f44336');
+                        nodes.push({
+                            id: name,
+                            label: name,
+                            type: isGlobal ? 'Global' : (def ? def.type : '?'),
+                            color: color,
+                            line: def ? def.line : '',
+                            expression: def ? def.expression || '' : ''
+                        });
+                    });
+
+                    return { nodes, edges };
+                } catch (e) {
+                    alert('Gagal parsing: ' + e.message);
+                    return null;
+                }
+            }
+
+            // Deteksi siklus (DFS)
+            function detectCycles() {
+                const adj = {}; // adjacency dari from ke to
+                edges.forEach(e => {
+                    if (!adj[e.from]) adj[e.from] = [];
+                    adj[e.from].push(e.to);
+                });
+                const WHITE = 0, GRAY = 1, BLACK = 2;
+                const color = {};
+                nodes.forEach(n => color[n.id] = WHITE);
+                const cycles = [];
+                const stack = [];
+
+                function dfs(u) {
+                    color[u] = GRAY;
+                    stack.push(u);
+                    const neighbors = adj[u] || [];
+                    for (let v of neighbors) {
+                        if (color[v] === GRAY) {
+                            // cycle ditemukan dari posisi v di stack sampai u
+                            const cycleStart = stack.indexOf(v);
+                            if (cycleStart !== -1) {
+                                cycles.push(stack.slice(cycleStart));
+                            }
+                        } else if (color[v] === WHITE) {
+                            dfs(v);
+                        }
+                    }
+                    stack.pop();
+                    color[u] = BLACK;
+                }
+
+                nodes.forEach(n => { if (color[n.id] === WHITE) dfs(n.id); });
+                return cycles;
+            }
+
+            function computeStats() {
+                const totalNodes = nodes.length;
+                const totalEdges = edges.length;
+                const unused = nodes.filter(n => n.color === '#f44336').length;
+                const cycles = detectCycles();
+                cycleNodes.clear();
+                cycles.forEach(cycle => cycle.forEach(id => cycleNodes.add(id)));
+                stats = {
+                    totalNodes,
+                    totalEdges,
+                    unused,
+                    circulars: cycles.length,
+                    maxDepth: 0,
+                    maxBranches: 0
+                };
+                // Hitung kedalaman dari Global (BFS sederhana)
+                if (nodePositions['Global']) {
+                    const depth = {};
+                    const queue = ['Global'];
+                    depth['Global'] = 0;
+                    while (queue.length) {
+                        const cur = queue.shift();
+                        edges.filter(e => e.from === cur).forEach(e => {
+                            if (depth[e.to] === undefined) {
+                                depth[e.to] = depth[cur] + 1;
+                                queue.push(e.to);
+                            }
+                        });
+                    }
+                    stats.maxDepth = Math.max(...Object.values(depth));
+                }
+                // Cabang terbanyak (outgoing degree)
+                const outDeg = {};
+                edges.forEach(e => { outDeg[e.from] = (outDeg[e.from]||0)+1; });
+                stats.maxBranches = Math.max(...Object.values(outDeg), 0);
+            }
+
+            function computeLayout(nodesArray) {
+                const positions = {};
+                const globalNode = nodesArray.find(n => n.id === 'Global');
+                const others = nodesArray.filter(n => n.id !== 'Global');
+                const centerX = 800, centerY = 500;
+                if (globalNode) positions['Global'] = { x: centerX, y: centerY };
+                const count = others.length;
+                const radius = Math.max(300, count * 45);
+                others.forEach((node, i) => {
+                    const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
+                    positions[node.id] = { x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle) };
+                });
+                return positions;
+            }
+
+            // Force-directed sederhana
+            function applyForceLayout(iterations = 50) {
+                if (nodes.length === 0) return;
+                // Inisialisasi posisi jika belum ada
+                if (Object.keys(nodePositions).length === 0) {
+                    nodePositions = computeLayout(nodes);
+                }
+                const repulsionStrength = 1500;
+                const attractionStrength = 0.01;
+                const damping = 0.9;
+                const velocities = {};
+                nodes.forEach(n => { velocities[n.id] = { x:0, y:0 }; });
+
+                for (let iter = 0; iter < iterations; iter++) {
+                    // Repulsion antar semua node
+                    nodes.forEach(n1 => {
+                        nodes.forEach(n2 => {
+                            if (n1.id >= n2.id) return;
+                            const p1 = nodePositions[n1.id];
+                            const p2 = nodePositions[n2.id];
+                            if (!p1 || !p2) return;
+                            let dx = p1.x - p2.x;
+                            let dy = p1.y - p2.y;
+                            let dist = Math.sqrt(dx*dx+dy*dy) || 1;
+                            let force = repulsionStrength / (dist*dist);
+                            let fx = (dx / dist) * force;
+                            let fy = (dy / dist) * force;
+                            velocities[n1.id].x += fx;
+                            velocities[n1.id].y += fy;
+                            velocities[n2.id].x -= fx;
+                            velocities[n2.id].y -= fy;
+                        });
+                    });
+                    // Attraction sepanjang edge
+                    edges.forEach(e => {
+                        const p1 = nodePositions[e.from];
+                        const p2 = nodePositions[e.to];
+                        if (!p1 || !p2) return;
+                        let dx = p2.x - p1.x;
+                        let dy = p2.y - p1.y;
+                        let dist = Math.sqrt(dx*dx+dy*dy) || 1;
+                        let force = (dist - 150) * attractionStrength;
+                        let fx = (dx / dist) * force;
+                        let fy = (dy / dist) * force;
+                        velocities[e.from].x += fx;
+                        velocities[e.from].y += fy;
+                        velocities[e.to].x -= fx;
+                        velocities[e.to].y -= fy;
+                    });
+                    // Update posisi
+                    nodes.forEach(n => {
+                        if (n.id === 'Global') return; // anchor Global
+                        const v = velocities[n.id];
+                        const p = nodePositions[n.id];
+                        if (!p) return;
+                        p.x += v.x * damping;
+                        p.y += v.y * damping;
+                        v.x *= damping;
+                        v.y *= damping;
+                    });
+                }
+            }
+
+            function fitToScreen() {
+                if (nodes.length === 0) return;
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                nodes.forEach(node => {
+                    const pos = nodePositions[node.id];
+                    if (!pos) return;
+                    if (pos.x < minX) minX = pos.x;
+                    if (pos.y < minY) minY = pos.y;
+                    if (pos.x > maxX) maxX = pos.x;
+                    if (pos.y > maxY) maxY = pos.y;
+                });
+                const padding = 60;
+                const graphWidth = (maxX - minX) + 2 * padding;
+                const graphHeight = (maxY - minY) + 2 * padding;
+                const scaleX = wrap.clientWidth / graphWidth;
+                const scaleY = wrap.clientHeight / graphHeight;
+                scale = Math.min(scaleX, scaleY, 2.0);
+                offsetX = (wrap.clientWidth - (minX + maxX) * scale) / 2;
+                offsetY = (wrap.clientHeight - (minY + maxY) * scale) / 2;
+            }
+
+            function scheduleDraw() {
+                if (rafId) return;
+                rafId = requestAnimationFrame(() => {
+                    rafId = null;
+                    draw();
+                });
+            }
+
+            function draw() {
+                canvas.width = wrap.clientWidth;
+                canvas.height = wrap.clientHeight;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                ctx.save();
+                ctx.translate(offsetX, offsetY);
+                ctx.scale(scale, scale);
+
+                // edges
+                edges.forEach(edge => {
+                    const fromPos = nodePositions[edge.from];
+                    const toPos = nodePositions[edge.to];
+                    if (!fromPos || !toPos) return;
+                    ctx.beginPath();
+                    ctx.moveTo(fromPos.x, fromPos.y);
+                    ctx.lineTo(toPos.x, toPos.y);
+                    ctx.strokeStyle = '#555';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    const angle = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+                    const arrowX = toPos.x - Math.cos(angle) * (nodeRadius + 4);
+                    const arrowY = toPos.y - Math.sin(angle) * (nodeRadius + 4);
+                    ctx.save();
+                    ctx.translate(arrowX, arrowY);
+                    ctx.rotate(angle);
+                    ctx.fillStyle = '#555';
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(-8, -4);
+                    ctx.lineTo(-8, 4);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                });
+
+                // nodes
+                nodes.forEach(node => {
+                    const pos = nodePositions[node.id];
+                    if (!pos) return;
+
+                    let fillColor = node.color;
+                    if (pulseNodeIds.has(node.id) && pulseStartTime) {
+                        const elapsed = performance.now() - pulseStartTime;
+                        if (elapsed < pulseDuration) {
+                            fillColor = '#f1c40f';
+                            const progress = elapsed / pulseDuration;
+                            const pulseRadius = nodeRadius + 12 * Math.sin(progress * Math.PI * 2);
+                            ctx.beginPath();
+                            ctx.arc(pos.x, pos.y, pulseRadius, 0, 2 * Math.PI);
+                            ctx.strokeStyle = `rgba(241, 196, 15, ${1 - progress})`;
+                            ctx.lineWidth = 3;
+                            ctx.stroke();
+                        }
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, nodeRadius, 0, 2 * Math.PI);
+                    ctx.fillStyle = fillColor;
+                    ctx.fill();
+                    // Border khusus jika siklus
+                    if (cycleNodes.has(node.id)) {
+                        ctx.strokeStyle = '#e67e22';
+                        ctx.lineWidth = 3;
+                    } else {
+                        ctx.strokeStyle = '#333';
+                        ctx.lineWidth = 2;
+                    }
+                    ctx.stroke();
+                    if (draggedNodeId === node.id) {
+                        ctx.strokeStyle = '#ffaa00';
+                        ctx.lineWidth = 3;
+                        ctx.stroke();
+                    }
+
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px "Segoe UI"';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    const label = node.label.length > 12 ? node.label.substring(0,11)+'…' : node.label;
+                    ctx.fillText(label, pos.x, pos.y - 4);
+
+                    if (node.expression && node.expression.length > 0) {
+                        ctx.font = '9px "Segoe UI"';
+                        ctx.fillStyle = '#fff';
+                        const exprText = node.expression.length > 16 ? node.expression.substring(0,15)+'…' : node.expression;
+                        ctx.fillText(exprText, pos.x, pos.y + 12);
+                    }
+                });
+
+                ctx.restore();
+                drawMinimap();
+
+                if (pulseNodeIds.size > 0 && performance.now() - pulseStartTime < pulseDuration) {
+                    scheduleDraw();
+                } else {
+                    pulseNodeIds.clear();
+                }
+            }
+
+            function drawMinimap() {
+                const w = minimap.width, h = minimap.height;
+                minimapCtx.clearRect(0, 0, w, h);
+                if (nodes.length === 0) return;
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                nodes.forEach(node => {
+                    const pos = nodePositions[node.id];
+                    if (!pos) return;
+                    if (pos.x < minX) minX = pos.x;
+                    if (pos.y < minY) minY = pos.y;
+                    if (pos.x > maxX) maxX = pos.x;
+                    if (pos.y > maxY) maxY = pos.y;
+                });
+                const padding = 40;
+                minX -= padding; minY -= padding; maxX += padding; maxY += padding;
+                const graphW = maxX - minX || 1;
+                const graphH = maxY - minY || 1;
+                const mapScale = Math.min(w / graphW, h / graphH);
+
+                minimapCtx.save();
+                minimapCtx.translate(w/2, h/2);
+                minimapCtx.scale(mapScale, mapScale);
+                minimapCtx.translate(-(minX + maxX)/2, -(minY + maxY)/2);
+
+                // edges
+                edges.forEach(edge => {
+                    const fromPos = nodePositions[edge.from];
+                    const toPos = nodePositions[edge.to];
+                    if (!fromPos || !toPos) return;
+                    minimapCtx.beginPath();
+                    minimapCtx.moveTo(fromPos.x, fromPos.y);
+                    minimapCtx.lineTo(toPos.x, toPos.y);
+                    minimapCtx.strokeStyle = '#666';
+                    minimapCtx.lineWidth = 1.2;
+                    minimapCtx.stroke();
+                });
+
+                // nodes
+                const miniRadius = 5;
+                nodes.forEach(node => {
+                    const pos = nodePositions[node.id];
+                    if (!pos) return;
+                    minimapCtx.beginPath();
+                    minimapCtx.arc(pos.x, pos.y, miniRadius, 0, 2*Math.PI);
+                    minimapCtx.fillStyle = node.color;
+                    minimapCtx.fill();
+                    if (cycleNodes.has(node.id)) {
+                        minimapCtx.strokeStyle = '#e67e22';
+                        minimapCtx.lineWidth = 1;
+                        minimapCtx.stroke();
+                    }
+                });
+
+                // viewport
+                const vpLeft = (0 - offsetX) / scale;
+                const vpTop = (0 - offsetY) / scale;
+                const vpRight = (canvas.width - offsetX) / scale;
+                const vpBottom = (canvas.height - offsetY) / scale;
+                minimapCtx.strokeStyle = '#007acc';
+                minimapCtx.lineWidth = 2;
+                minimapCtx.strokeRect(vpLeft, vpTop, vpRight - vpLeft, vpBottom - vpTop);
+
+                minimapCtx.restore();
+            }
+
+            function updateSidebar() {
+                nodeListEl.innerHTML = '';
+                nodes.forEach(node => {
+                    const li = document.createElement('li');
+                    const dot = document.createElement('span');
+                    dot.className = 'node-dot';
+                    dot.style.backgroundColor = node.color;
+                    li.appendChild(dot);
+                    li.appendChild(document.createTextNode(node.label + (node.expression ? ' = '+node.expression : '')));
+                    li.addEventListener('click', () => {
+                        showNodeDetail(node.id);
+                        // Zoom to node
+                        const pos = nodePositions[node.id];
+                        if (pos) {
+                            offsetX = wrap.clientWidth/2 - pos.x * scale;
+                            offsetY = wrap.clientHeight/2 - pos.y * scale;
+                            scheduleDraw();
+                        }
+                    });
+                    nodeListEl.appendChild(li);
+                });
+            }
+
+            function updateStatPanel() {
+                statPanel.innerHTML = `📊 Node: ${stats.totalNodes} | Edge: ${stats.totalEdges} | 🔴 Tak terpakai: ${stats.unused} | 🟠 Siklus: ${stats.circulars} | 📏 Kedalaman maks: ${stats.maxDepth} | 🌿 Cabang maks: ${stats.maxBranches}`;
+            }
+
+            function proses() {
+                const kode = document.getElementById('kode').value.trim();
+                if (!kode) { alert('Masukkan kode terlebih dahulu.'); return; }
+                const graph = buildGraph(kode);
+                if (!graph) return;
+                nodes = graph.nodes;
+                edges = graph.edges;
+                nodePositions = computeLayout(nodes);
+                computeStats();
+                updateSidebar();
+                updateStatPanel();
+                infoPanel.style.display = 'none';
+                pulseNodeIds.clear();
+                fitToScreen();
+                scheduleDraw();
+            }
+
+            // Pencarian
+            searchBox.addEventListener('input', function() {
+                const query = this.value.toLowerCase();
+                if (!query) return;
+                const found = nodes.find(n => n.label.toLowerCase().includes(query));
+                if (found) {
+                    showNodeDetail(found.id);
+                    const pos = nodePositions[found.id];
+                    if (pos) {
+                        offsetX = wrap.clientWidth/2 - pos.x * scale;
+                        offsetY = wrap.clientHeight/2 - pos.y * scale;
+                        scheduleDraw();
+                    }
+                }
+            });
+
+            // Force layout tombol
+            document.getElementById('btnForce').addEventListener('click', () => {
+                applyForceLayout(100);
+                fitToScreen();
+                scheduleDraw();
+            });
+
+            // ... (interaksi mouse/touch sama persis seperti sebelumnya, tidak diubah) ...
+            // Untuk menghemat tempat, saya tidak tulis ulang seluruh kode interaksi, tapi pastikan tetap ada.
+            // Saya akan lampirkan bagian interaksi yang sudah ada di bawah.
+
+            // (Kode interaksi yang sama dari versi sebelumnya, disertakan di sini)
+            function getCanvasPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            }
+
+            function screenToWorld(sx, sy) {
+                return { x: (sx - offsetX) / scale, y: (sy - offsetY) / scale };
+            }
+
+            function hitTest(screenX, screenY) {
+                const world = screenToWorld(screenX, screenY);
+                for (let node of nodes) {
+                    const pos = nodePositions[node.id];
+                    if (!pos) continue;
+                    const dx = pos.x - world.x, dy = pos.y - world.y;
+                    if (Math.sqrt(dx*dx+dy*dy) <= nodeRadius) return node.id;
+                }
+                return null;
+            }
+
+            function showNodeDetail(nodeId) {
+                const node = nodes.find(n => n.id === nodeId);
+                if (!node) return;
+                const incoming = edges.filter(e => e.to === nodeId).map(e => e.from);
+                const outgoing = edges.filter(e => e.from === nodeId).map(e => e.to);
+                let exprInfo = node.expression ? ` Ekspresi: ${node.expression}` : '';
+                let cycleInfo = cycleNodes.has(nodeId) ? ' (⚠️ Siklus)' : '';
+                infoPanel.innerHTML = `<b>${node.label}</b> (${node.type})${node.line ? ' baris '+node.line : ''}${exprInfo}${cycleInfo}<br>` +
+                    `↘ dipanggil dari: ${incoming.length ? incoming.join(', ') : 'tidak ada'}<br>` +
+                    `↗ memanggil: ${outgoing.length ? outgoing.join(', ') : 'tidak ada'}`;
+                infoPanel.style.display = 'block';
+                clearTimeout(infoPanel._timeout);
+                infoPanel._timeout = setTimeout(() => { infoPanel.style.display = 'none'; }, 5000);
+
+                pulseNodeIds = new Set([nodeId, ...incoming, ...outgoing]);
+                pulseStartTime = performance.now();
+                scheduleDraw();
+            }
+
+            function startDrag(screenPos) {
+                mouseDownPos = screenPos;
+                if (editMode) {
+                    const hitId = hitTest(screenPos.x, screenPos.y);
+                    if (hitId) {
+                        draggedNodeId = hitId;
+                        isDragging = false;
+                        canvas.style.cursor = 'grabbing';
+                    } else {
+                        isDragging = true;
+                        draggedNodeId = null;
+                        lastMouseX = screenPos.x;
+                        lastMouseY = screenPos.y;
+                        canvas.style.cursor = 'grabbing';
+                    }
+                } else {
+                    isDragging = true;
+                    draggedNodeId = null;
+                    lastMouseX = screenPos.x;
+                    lastMouseY = screenPos.y;
+                    canvas.style.cursor = 'grabbing';
+                }
+            }
+
+            function moveDrag(screenPos) {
+                if (draggedNodeId) {
+                    const world = screenToWorld(screenPos.x, screenPos.y);
+                    if (nodePositions[draggedNodeId]) {
+                        nodePositions[draggedNodeId].x = world.x;
+                        nodePositions[draggedNodeId].y = world.y;
+                        scheduleDraw();
+                    }
+                } else if (isDragging) {
+                    const dx = screenPos.x - lastMouseX;
+                    const dy = screenPos.y - lastMouseY;
+                    offsetX += dx;
+                    offsetY += dy;
+                    lastMouseX = screenPos.x;
+                    lastMouseY = screenPos.y;
+                    scheduleDraw();
+                }
+            }
+
+            function endDrag(e) {
+                if (!editMode && mouseDownPos && e) {
+                    const pos = getCanvasPos(e);
+                    const dx = pos.x - mouseDownPos.x;
+                    const dy = pos.y - mouseDownPos.y;
+                    if (Math.sqrt(dx*dx+dy*dy) < 5) {
+                        const hitId = hitTest(pos.x, pos.y);
+                        if (hitId) showNodeDetail(hitId);
+                        else infoPanel.style.display = 'none';
+                    }
+                }
+                isDragging = false;
+                draggedNodeId = null;
+                canvas.style.cursor = 'default';
+                mouseDownPos = null;
+                scheduleDraw();
+            }
+
+            canvas.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag(getCanvasPos(e)); });
+            window.addEventListener('mousemove', (e) => { if (isDragging || draggedNodeId) { e.preventDefault(); moveDrag(getCanvasPos(e)); } });
+            window.addEventListener('mouseup', (e) => { if (isDragging || draggedNodeId || mouseDownPos) endDrag(e); });
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1) {
+                    startDrag({ x: e.touches[0].clientX - canvas.getBoundingClientRect().left, y: e.touches[0].clientY - canvas.getBoundingClientRect().top });
+                } else if (e.touches.length === 2) {
+                    isDragging = false; draggedNodeId = null; mouseDownPos = null;
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    initialPinchDistance = Math.sqrt(dx*dx+dy*dy);
+                    initialScale = scale;
+                    const rect = canvas.getBoundingClientRect();
+                    pinchCenter = { x: (e.touches[0].clientX + e.touches[1].clientX)/2 - rect.left, y: (e.touches[0].clientY + e.touches[1].clientY)/2 - rect.top };
+                }
+            });
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1 && (isDragging || draggedNodeId)) {
+                    const pos = { x: e.touches[0].clientX - canvas.getBoundingClientRect().left, y: e.touches[0].clientY - canvas.getBoundingClientRect().top };
+                    moveDrag(pos);
+                } else if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const currentDistance = Math.sqrt(dx*dx+dy*dy);
+                    if (initialPinchDistance > 0) {
+                        const newScale = initialScale * (currentDistance / initialPinchDistance);
+                        if (newScale < 0.2 || newScale > 3.5) return;
+                        const world = screenToWorld(pinchCenter.x, pinchCenter.y);
+                        scale = newScale;
+                        offsetX = pinchCenter.x - world.x * scale;
+                        offsetY = pinchCenter.y - world.y * scale;
+                        scheduleDraw();
+                    }
+                }
+            });
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (!editMode && mouseDownPos && e.changedTouches.length === 1) {
+                    const touch = e.changedTouches[0];
+                    const pos = { x: touch.clientX - canvas.getBoundingClientRect().left, y: touch.clientY - canvas.getBoundingClientRect().top };
+                    const dx = pos.x - mouseDownPos.x;
+                    const dy = pos.y - mouseDownPos.y;
+                    if (Math.sqrt(dx*dx+dy*dy) < 5) {
+                        const hitId = hitTest(pos.x, pos.y);
+                        if (hitId) showNodeDetail(hitId);
+                        else infoPanel.style.display = 'none';
+                    }
+                }
+                isDragging = false; draggedNodeId = null; initialPinchDistance = 0; mouseDownPos = null;
+                canvas.style.cursor = 'default';
+                scheduleDraw();
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const pos = getCanvasPos(e);
+                const delta = e.deltaY > 0 ? 0.95 : 1.05;
+                const newScale = scale * delta;
+                if (newScale < 0.2 || newScale > 3.5) return;
+                const world = screenToWorld(pos.x, pos.y);
+                scale = newScale;
+                offsetX = pos.x - world.x * scale;
+                offsetY = pos.y - world.y * scale;
+                scheduleDraw();
+            });
+
+            document.getElementById('zoomInBtn').addEventListener('click', () => {
+                const newScale = scale * 1.2;
+                if (newScale > 3.5) return;
+                const cx = wrap.clientWidth/2, cy = wrap.clientHeight/2;
+                const world = screenToWorld(cx, cy);
+                scale = newScale;
+                offsetX = cx - world.x * scale;
+                offsetY = cy - world.y * scale;
+                scheduleDraw();
+            });
+            document.getElementById('zoomOutBtn').addEventListener('click', () => {
+                const newScale = scale / 1.2;
+                if (newScale < 0.2) return;
+                const cx = wrap.clientWidth/2, cy = wrap.clientHeight/2;
+                const world = screenToWorld(cx, cy);
+                scale = newScale;
+                offsetX = cx - world.x * scale;
+                offsetY = cy - world.y * scale;
+                scheduleDraw();
+            });
+
+            editModeBtn.addEventListener('click', () => {
+                editMode = !editMode;
+                updateEditButton();
+                if (!editMode) { draggedNodeId = null; isDragging = false; canvas.style.cursor = 'default'; }
+            });
+
+            document.getElementById('btnProses').addEventListener('click', proses);
+            document.getElementById('btnReset').addEventListener('click', () => {
+                if (nodes.length > 0) {
+                    fitToScreen();
+                    scheduleDraw();
+                }
+                infoPanel.style.display = 'none';
+                pulseNodeIds.clear();
+            });
+
+            window.addEventListener('resize', () => { if (nodes.length > 0) scheduleDraw(); });
+            window.addEventListener('load', () => { updateEditButton(); proses(); });
+        })();
+    </script>
+</body>
+</html>
